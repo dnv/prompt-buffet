@@ -6,8 +6,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+
+- Graceful handling of settings-file failures. When `prompt-buffet.json`
+  cannot be read, parsed, resynced, or written — or when the
+  `extensions/` directory it lives in cannot be created — the extension
+  now falls back to its built-in defaults for the rest of the session
+  instead of throwing. `loadConfig` distinguishes the two first-run cases
+  (directory-creation failure vs. seed-write failure) and, on either,
+  latches a startup-failure state and surfaces a one-time warning above
+  the editor at `session_start`.
+- Once a startup failure latches, all filesystem I/O on the settings path
+  is skipped for the session: the file is never read or written again. New
+  `isErrorWithCode` and `describeError` helpers support the new
+  error-classification path.
+
 ### Changed
 
+- Config reads no longer silently swallow errors. `readConfigFile` returns
+  `undefined` on a missing file (first run) and re-throws other read
+  failures (including `ENOTDIR`) so the caller can latch into
+  defaults-only mode; invalid JSON and non-object payloads now throw
+  instead of being ignored. Config resync (`syncConfigFileKeys`) likewise
+  throws on read/write failure rather than degrading quietly.
+- `setEnabledInConfig` no longer returns the config path, and performs no
+  disk I/O once a startup failure has latched.
+- The `/prompt-buffet on|off` toggle applies to in-memory state only after
+  a startup failure, so the extension remains usable without a working
+  settings file.
 - The single `prompt-buffet.ts` entry has been split into logical modules:
   `index.ts` (entry, event wiring, editor, widget state), `config.ts`
   (config loading/writing and model-spec resolution), `suggestions.ts`

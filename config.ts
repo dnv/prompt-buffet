@@ -30,24 +30,78 @@ export interface PromptSuggestionsConfig {
 
 export type PromptSuggestionsConfigInput = Partial<PromptSuggestionsConfig>;
 
+/**
+ * Startup failure state. Once set, all filesystem I/O on the settings path is
+ * skipped for the rest of the session and the extension operates on its
+ * built-in defaults. The canonical warning is kept so the UI can render it.
+ */
+let configSyncFailed = false;
+let configStartupWarning: string | undefined;
+
+export function isConfigSyncFailed(): boolean {
+	return configSyncFailed;
+}
+
+export function getConfigStartupWarning(): string | undefined {
+	return configStartupWarning;
+}
+
+function markConfigSyncFailed(warning: string): void {
+	if (configSyncFailed) return;
+	configSyncFailed = true;
+	configStartupWarning = warning;
+}
+
 export function loadConfig(onWarning?: (message: string) => void): PromptSuggestionsConfig {
+	if (configSyncFailed) return mergeConfigInputs();
+
 	const globalPath = join(getAgentDir(), ...GLOBAL_CONFIG_RELATIVE_PATH);
-	const config = mergeConfigInputs(readConfigFile(globalPath, onWarning));
-	ensureConfigFile(globalPath, onWarning);
-	return config;
-}
+	const report = (message: string): void => onWarning?.(message);
 
-function ensureConfigFile(path: string, onWarning?: (message: string) => void): void {
-	if (existsSync(path)) return;
+	let existing: PromptSuggestionsConfigInput | undefined;
 	try {
-		mkdirSync(dirname(path), { recursive: true });
-		writeFileSync(path, formatConfigFile(normalizeConfigData({})));
+		existing = readConfigFile(globalPath, report);
 	} catch (error) {
-		onWarning?.(`config creation failed: ${path}: ${error instanceof Error ? error.message : String(error)}`);
+		// The directory exists, but the settings file could not be read or
+		// resynced. Fall back to defaults and stop touching disk for the session.
+		markConfigSyncFailed(
+			"prompt-buffet: could not sync ~/.pi/agent/extensions/prompt-buffet.json settings, using defaults",
+		);
+		report(`config sync failed: ${globalPath}: ${describeError(error)}`);
+		return mergeConfigInputs();
 	}
+
+	if (existing === undefined) {
+		// First run: create the directory and seed the settings file.
+		try {
+			mkdirSync(dirname(globalPath), { recursive: true });
+		} catch (error) {
+			markConfigSyncFailed(
+				"prompt-buffet: could not create ~/.pi/agent/extensions/ directory, using default settings",
+			);
+			report(`config creation failed: ${globalPath}: ${describeError(error)}`);
+			return mergeConfigInputs();
+		}
+		try {
+			writeFileSync(globalPath, formatConfigFile(normalizeConfigData({})));
+		} catch (error) {
+			// Directory exists, but seeding the missing settings failed.
+			markConfigSyncFailed(
+				"prompt-buffet: could not sync ~/.pi/agent/extensions/prompt-buffet.json settings, using defaults",
+			);
+			report(`config write failed: ${globalPath}: ${describeError(error)}`);
+			return mergeConfigInputs();
+		}
+		return mergeConfigInputs();
+	}
+
+	return mergeConfigInputs(existing);
 }
 
-export function setEnabledInConfig(enabled: boolean): string {
+export function setEnabledInConfig(enabled: boolean): void {
+	// After a startup sync failure the settings file is never read or written
+	// again for the session; callers toggle their in-memory state instead.
+	if (configSyncFailed) return;
 	const path = join(getAgentDir(), ...GLOBAL_CONFIG_RELATIVE_PATH);
 	let data: Record<string, unknown> = {};
 	if (existsSync(path)) {
@@ -63,39 +117,46 @@ export function setEnabledInConfig(enabled: boolean): string {
 	data.enabled = enabled;
 	mkdirSync(dirname(path), { recursive: true });
 	writeFileSync(path, `${JSON.stringify(data, null, 2)}\n`);
-	return path;
 }
 
-function readConfigFile(path: string, onWarning?: (message: string) => void): PromptSuggestionsConfigInput {
-	if (!existsSync(path)) return {};
-	let raw: unknown;
+// Returns undefined when the settings file does not exist yet (first run).
+// Throws on any other read or resync failure so loadConfig can latch the
+// extension into defaults-only mode.
+function readConfigFile(path: string, report: (message: string) => void): PromptSuggestionsConfigInput | undefined {
+	let raw: string;
 	try {
-		raw = JSON.parse(readFileSync(path, "utf-8"));
+		raw = readFileSync(path, "utf-8");
 	} catch (error) {
-		onWarning?.(`config ignored: ${path}: ${error instanceof Error ? error.message : String(error)}`);
-		return {};
+		// ENOENT: the file does not exist yet (first run). ENOTDIR: a parent
+		// path segment is not a directory, so the file cannot exist either.
+		// Both delegate to loadConfig's directory-creation stage, which
+		// classifies whether the failure is a directory-creation error.
+		if (isErrorWithCode(error, "ENOENT") || isErrorWithCode(error, "ENOTDIR")) return undefined;
+		throw error;
 	}
-	if (!isRecord(raw)) {
-		onWarning?.(`config ignored: ${path}: expected object`);
-		return {};
+
+	let data: unknown;
+	try {
+		data = JSON.parse(raw);
+	} catch (error) {
+		throw new Error(`invalid JSON: ${describeError(error)}`);
 	}
-	syncConfigFileKeys(path, raw, onWarning);
-	return parseConfigInput(normalizeConfigData(raw), path, onWarning);
+	if (!isRecord(data)) throw new Error("expected a JSON object");
+
+	syncConfigFileKeys(path, data, report);
+	return parseConfigInput(normalizeConfigData(data), path, report);
 }
 
 // Backfill defaults for supported keys that are missing from an older config file,
 // and drop keys the extension no longer supports. Rewrites the file when it diverges.
-function syncConfigFileKeys(path: string, raw: Record<string, unknown>, onWarning?: (message: string) => void): void {
+// Throws on read or write failure so the caller latches into defaults-only mode.
+function syncConfigFileKeys(path: string, raw: Record<string, unknown>, report: (message: string) => void): void {
 	const normalized = normalizeConfigData(raw);
 	const canonical = formatConfigFile(normalized);
-	try {
-		const current = readFileSync(path, "utf-8");
-		if (current !== canonical) {
-			writeFileSync(path, canonical);
-			onWarning?.(`config resynced: ${path}`);
-		}
-	} catch (error) {
-		onWarning?.(`config resync failed: ${path}: ${error instanceof Error ? error.message : String(error)}`);
+	const current = readFileSync(path, "utf-8");
+	if (current !== canonical) {
+		writeFileSync(path, canonical);
+		report(`config resynced: ${path}`);
 	}
 }
 
@@ -177,6 +238,14 @@ export function parseModelSpec(spec: string): { provider: string; model: string 
 	const slash = spec.indexOf("/");
 	if (slash <= 0 || slash === spec.length - 1) return undefined;
 	return { provider: spec.slice(0, slash), model: spec.slice(slash + 1) };
+}
+
+function describeError(error: unknown): string {
+	return error instanceof Error ? error.message : String(error);
+}
+
+function isErrorWithCode(error: unknown, code: string): boolean {
+	return error instanceof Error && (error as NodeJS.ErrnoException).code === code;
 }
 
 function isPositiveInteger(value: unknown): value is number {

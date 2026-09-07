@@ -5,6 +5,8 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { Key, matchesKey, truncateToWidth, type AutocompleteItem } from "@earendil-works/pi-tui";
 import {
+	getConfigStartupWarning,
+	isConfigSyncFailed,
 	isIntegerInRange,
 	loadConfig,
 	mergeConfigInputs,
@@ -81,8 +83,15 @@ export default function promptBuffet(pi: ExtensionAPI) {
 					);
 				return;
 			}
-			setEnabledInConfig(arg === "on");
-			currentConfig = loadConfig((message) => debug(ctx, message));
+			if (isConfigSyncFailed()) {
+				// Config-file I/O is disabled for the session after a startup
+				// failure, so the toggle applies to in-memory state only.
+				currentConfig = { ...currentConfig, enabled: arg === "on" };
+			} else {
+				setEnabledInConfig(arg === "on");
+				currentConfig = loadConfig((message) => debug(ctx, message));
+			}
+
 			if (ctx.hasUI)
 				ctx.ui.notify(
 					`Prompt suggestions ${arg === "on" ? "enabled" : "disabled"} (applies from the next turn)`,
@@ -93,7 +102,14 @@ export default function promptBuffet(pi: ExtensionAPI) {
 
 	pi.on("session_start", (_event, ctx) => {
 		lastCtx = ctx;
-		currentConfig = loadConfig((message) => debug(ctx, message));
+		if (isConfigSyncFailed()) {
+			// Surface the startup failure above the editor, the same way a
+			// startup warning diagnostic renders.
+			const warning = getConfigStartupWarning();
+			if (warning) ctx.ui.notify(warning, "warning");
+		} else {
+			currentConfig = loadConfig((message) => debug(ctx, message));
+		}
 		clearSuggestion(ctx);
 		ctx.ui.setEditorComponent((tui, theme, keybindings) => {
 			currentEditor = new SuggestionEditor(tui, theme, keybindings);
@@ -124,7 +140,9 @@ export default function promptBuffet(pi: ExtensionAPI) {
 
 		if (ctx.mode !== "tui") return debug(ctx, `skipped: mode is ${ctx.mode}`);
 
-		const config = loadConfig((message) => debug(ctx, message));
+		const config = isConfigSyncFailed()
+			? currentConfig
+			: loadConfig((message) => debug(ctx, message));
 		if (!config.enabled) return debug(ctx, "skipped: disabled by config");
 		if (ctx.hasPendingMessages()) return debug(ctx, "skipped: pending messages");
 		if (ctx.ui.getEditorText().trim().length > 0) return debug(ctx, "skipped: editor is not empty");
@@ -173,7 +191,7 @@ function showSuggestions(items: string[], ctx = lastCtx): void {
 
 function renderSuggestions(ctx = lastCtx): void {
 	if (!ctx || !suggestions) return;
-	currentConfig = loadConfig((message) => debug(ctx, message));
+	if (!isConfigSyncFailed()) currentConfig = loadConfig((message) => debug(ctx, message));
 	ctx.ui.setWidget(
 		WIDGET_KEY,
 		(_tui, theme) => ({
