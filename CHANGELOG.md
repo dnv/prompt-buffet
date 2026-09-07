@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.1.1] - 2026-09-07
+
+### Fixed
+
+- The config file at `<agent dir>/extensions/prompt-buffet.json` is now created
+  even on a fresh install where the `extensions/` directory does not yet exist.
+  `ensureConfigFile` and `setEnabledInConfig` create the parent directory with
+  `mkdirSync(dirname, { recursive: true })` before writing.
+
 ## [0.1.0] - 2026-09-06
 
 First public release. Prompt Buffet is a standalone fork of
