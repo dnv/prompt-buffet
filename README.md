@@ -134,9 +134,6 @@ The `...` is the extension's install root, see the [Installation](#installation)
 - `~/.pi/agent/extensions/prompt-buffet.json`
   Your currently active [settings](#settings).
 
-- `.../prompt-buffet/prompt-buffet.ts`
-  The extension source.
-
 - `.../prompt-buffet/prompts/suggestion-system-prompt.md` - the prompt used to generate suggestions. The prompt uses two placeholders, substituted at load: `{maxChars}` from the `maxChars` setting, and `{maxCandidates}` derived from `maxSuggestions x 2`. If the file is missing, a short built-in fallback prompt is used. Editing this file lets you tune suggestion style without touching code.
 
 - `prompt-buffet-debug.log` (created in the working directory)

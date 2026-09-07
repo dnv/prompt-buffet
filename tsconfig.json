@@ -9,5 +9,5 @@
 		"types": ["node"],
 		"allowImportingTsExtensions": true
 	},
-	"include": ["prompt-buffet.ts", "tests/**/*.ts"]
+	"include": ["index.ts", "config.ts", "suggestions.ts", "utils.ts", "tests/**/*.ts"]
 }

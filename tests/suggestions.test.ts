@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import { test } from "node:test";
 
-const mod: any = await import("../prompt-buffet.ts");
+const mod: any = await import("../index.ts");
 const {
 	buildSuggestionContext,
 	candidatePoolSize,

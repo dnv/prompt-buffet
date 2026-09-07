@@ -25,7 +25,10 @@
     "CHANGELOG.md",
     "LICENSE",
     "prompt-buffet.png",
-    "prompt-buffet.ts",
+    "index.ts",
+    "config.ts",
+    "suggestions.ts",
+    "utils.ts",
     "prompts",
     "README.md"
   ],
@@ -36,7 +39,7 @@
   },
   "pi": {
     "extensions": [
-      "./prompt-buffet.ts"
+      "./index.ts"
     ]
   },
   "publishConfig": {

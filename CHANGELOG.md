@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Changed
+
+- The single `prompt-buffet.ts` entry has been split into logical modules:
+  `index.ts` (entry, event wiring, editor, widget state), `config.ts`
+  (config loading/writing and model-spec resolution), `suggestions.ts`
+  (generation pipeline, context building, sanitization/deduplication),
+  and `utils.ts` (debug logging and small shared helpers). The
+  `package.json` `pi.extensions` entry and `files` list now point at and
+  ship these modules.
+
 ## [0.1.1] - 2026-09-07
 
 ### Fixed
