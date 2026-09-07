@@ -1,6 +1,6 @@
 {
   "name": "@pi-sysadmin/prompt-buffet",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Next-prompt suggestions for Pi: LLM-generated follow-ups after each agent turn.",
   "type": "module",
   "private": false,
