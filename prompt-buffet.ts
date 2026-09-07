@@ -1,5 +1,5 @@
-import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import {
 	CustomEditor,
 	convertToLlm,
@@ -510,6 +510,7 @@ function loadConfig(onWarning?: (message: string) => void): PromptSuggestionsCon
 function ensureConfigFile(path: string, onWarning?: (message: string) => void): void {
 	if (existsSync(path)) return;
 	try {
+		mkdirSync(dirname(path), { recursive: true });
 		writeFileSync(path, formatConfigFile(normalizeConfigData({})));
 	} catch (error) {
 		onWarning?.(`config creation failed: ${path}: ${error instanceof Error ? error.message : String(error)}`);
@@ -530,6 +531,7 @@ function setEnabledInConfig(enabled: boolean): string {
 		}
 	}
 	data.enabled = enabled;
+	mkdirSync(dirname(path), { recursive: true });
 	writeFileSync(path, `${JSON.stringify(data, null, 2)}\n`);
 	return path;
 }
