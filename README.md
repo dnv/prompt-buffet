@@ -37,7 +37,7 @@ You may also install by pointing `pi install` directly at this git repo, but sin
 
 `/prompt-buffet on|off` (Default: on)
 
-Toggles the feature and persists the choice to the config file. The change applies from the next turn. With no valid argument, it reports the current state. Note that this is only ment as a temporary measure in case the extension interferes with your current workflow. If you need to disable it entirely (freeing up context, etc), you still need to use `pi config`´.
+Toggles the feature and persists the choice to the config file. The change applies from the next turn. With no valid argument, it reports the current state. Note that this is only ment as a temporary measure in case the extension interferes with your current workflow. If you need to disable it entirely (freeing up context, etc), you still need to use `pi config`.
 
 Config file: `~/.pi/agent/extensions/prompt-buffet.json`
 
