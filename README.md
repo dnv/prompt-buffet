@@ -41,7 +41,7 @@ Toggles the feature and persists the choice to the config file. The change appli
 
 Config file: `~/.pi/agent/extensions/prompt-buffet.json`
 
-The file is created automatically on first use with all defaults, and is resynced on load: missing keys are backfilled, and keys the extension no longer understands are removed. Invalid values are ignored (with a warning in the TUI) and the default is used.
+The file is created automatically (and it is assumed ~/.pi/agent/ is writeable) on first use with all defaults, and is resynced on load: missing keys are backfilled, and keys the extension no longer understands are removed. Invalid values are ignored (with a warning in the TUI) and the default is used.
 
 | Key | Type | Default |
 |-----|------|---------|
