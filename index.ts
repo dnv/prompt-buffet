@@ -239,7 +239,7 @@ function showGeneratingIndicator(ctx = lastCtx): void {
 			// Indent by outputPad (default 1) so the line lines up with the chat text,
 			// which is left-padded by the same setting. The extension API does not
 			// expose the configured value, so the default pad is used.
-			render: (width: number) => [truncateToWidth(` ${theme.fg("dim", "Generating suggestions...")}`, width)],
+			render: (width: number) => [truncateToWidth(` ${theme.fg("dim", "Working...")}`, width)],
 			invalidate: () => {},
 		}),
 		{ placement: "aboveEditor" },

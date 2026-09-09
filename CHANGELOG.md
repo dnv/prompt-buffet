@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
-- A transient "Generating suggestions..." line appears above the editor the
+- A transient "Working..." line appears above the editor the
   moment a next-prompt suggestion starts generating and clears as soon as the
   candidates are ready to display. It is a static `aboveEditor` widget (no
   timer, no animated frames, no-op `invalidate`), so setting and clearing it
