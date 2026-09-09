@@ -42,6 +42,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   `package.json` `pi.extensions` entry and `files` list now point at and
   ship these modules.
 
+### Fixed
+
+- The animated "Working..." indicator no longer keeps spinning during
+  suggestion generation. Pi awaits `agent_end` extension handlers before it
+  settles the turn and clears that indicator; the prompt-buffet handler
+  used to block on the suggestion LLM request, keeping the indicator
+  animating — and the whole TUI re-rendering — for the full duration of the
+  call, which also defeated terminal scrollback. Suggestion generation now
+  runs fire-and-forget inside the `agent_end` handler; the staleness,
+  pending-message, and editor-empty checks are unchanged.
+
 ## [0.1.1] - 2026-09-07
 
 ### Fixed

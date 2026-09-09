@@ -34,6 +34,7 @@ import {
 import { debug, truncatePlain } from "./utils.ts";
 
 const WIDGET_KEY = "next-prompt-suggestions";
+const WIDGET_GENERATING_KEY = "prompt-buffet-generating";
 
 let suggestions: string[] | undefined;
 let generationId = 0;
@@ -152,6 +153,7 @@ export default function promptBuffet(pi: ExtensionAPI) {
 
 		const id = ++generationId;
 		debug(ctx, "generating...");
+		showGeneratingIndicator(ctx);
 
 		// Fire and forget. Pi awaits agent_end handlers before settling the turn; blocking here
 		// on the suggestion request keeps the "Working..." indicator animating and re-rendering
@@ -161,8 +163,14 @@ export default function promptBuffet(pi: ExtensionAPI) {
 				const raw = await generateSuggestions(event.messages, ctx, model, config);
 				debug(ctx, `raw: ${JSON.stringify(truncatePlain(JSON.stringify(raw), 320))}`);
 				if (id !== generationId) return debug(ctx, "ignored: stale result");
-				if (ctx.hasPendingMessages()) return debug(ctx, "ignored: pending messages appeared");
-				if (ctx.ui.getEditorText().trim().length > 0) return debug(ctx, "ignored: editor became non-empty");
+				if (ctx.hasPendingMessages()) {
+					clearGeneratingIndicator(id, ctx);
+					return debug(ctx, "ignored: pending messages appeared");
+				}
+				if (ctx.ui.getEditorText().trim().length > 0) {
+					clearGeneratingIndicator(id, ctx);
+					return debug(ctx, "ignored: editor became non-empty");
+				}
 
 				// Model ranks candidates by confidence; sanitize, drop near-duplicates, then keep the top maxSuggestions.
 				const clean = dedupeSuggestions(
@@ -170,11 +178,17 @@ export default function promptBuffet(pi: ExtensionAPI) {
 						.map((text) => sanitizeSuggestion(text, config.maxChars))
 						.filter((text): text is string => text !== undefined),
 				).slice(0, config.maxSuggestions);
-				if (!clean.length) return debug(ctx, `rejected: ${JSON.stringify(truncatePlain(JSON.stringify(raw), 320))}`);
+				if (!clean.length) {
+					clearGeneratingIndicator(id, ctx);
+					return debug(ctx, `rejected: ${JSON.stringify(truncatePlain(JSON.stringify(raw), 320))}`);
+				}
 
+				// Hide the "Generating..." line right before the options appear below the editor.
+				clearGeneratingIndicator(id, ctx);
 				showSuggestions(clean, ctx);
 				debug(ctx, `shown: ${JSON.stringify(clean)}`);
 			} catch (error) {
+				clearGeneratingIndicator(id, ctx);
 				debug(ctx, `error: ${error instanceof Error ? error.message : String(error)}`);
 				// Suggestion generation is best-effort and must never interrupt normal use.
 			}
@@ -185,6 +199,7 @@ export default function promptBuffet(pi: ExtensionAPI) {
 function clearSuggestion(ctx = lastCtx): void {
 	generationId++;
 	suggestions = undefined;
+	clearGeneratingIndicator(undefined, ctx);
 	ctx?.ui.setWidget(WIDGET_KEY, undefined);
 }
 
@@ -210,6 +225,33 @@ function renderSuggestions(ctx = lastCtx): void {
 		}),
 		{ placement: "belowEditor" },
 	);
+}
+
+// Show the transient "Generating..." line above the editor.
+// Rendered as a static widget: setWidget triggers a single redraw, and the
+// component is otherwise inert (no timer, no animated frames, no-op
+// invalidate), so its mere presence never drives a redraw loop and does not
+// interfere with terminal scrollback.
+function showGeneratingIndicator(ctx = lastCtx): void {
+	ctx?.ui.setWidget(
+		WIDGET_GENERATING_KEY,
+		(_tui, theme) => ({
+			// Indent by outputPad (default 1) so the line lines up with the chat text,
+			// which is left-padded by the same setting. The extension API does not
+			// expose the configured value, so the default pad is used.
+			render: (width: number) => [truncateToWidth(` ${theme.fg("dim", "Generating suggestions...")}`, width)],
+			invalidate: () => {},
+		}),
+		{ placement: "aboveEditor" },
+	);
+}
+
+// Hide the transient "Generating..." line. Pass the generation id from an async
+// path so a stale result (whose generation was superseded) never wipes a newer
+// indicator; a plain call from a synchronous reset clears unconditionally.
+function clearGeneratingIndicator(id?: number, ctx = lastCtx): void {
+	if (id !== undefined && id !== generationId) return;
+	ctx?.ui.setWidget(WIDGET_GENERATING_KEY, undefined);
 }
 
 function isUserEditKey(data: string): boolean {
