@@ -134,7 +134,7 @@ export default function promptBuffet(pi: ExtensionAPI) {
 		lastCtx = undefined;
 	});
 
-	pi.on("agent_end", async (event, ctx) => {
+	pi.on("agent_end", (event, ctx) => {
 		lastCtx = ctx;
 		clearSuggestion(ctx);
 
@@ -153,27 +153,32 @@ export default function promptBuffet(pi: ExtensionAPI) {
 		const id = ++generationId;
 		debug(ctx, "generating...");
 
-		try {
-			const raw = await generateSuggestions(event.messages, ctx, model, config);
-			debug(ctx, `raw: ${JSON.stringify(truncatePlain(JSON.stringify(raw), 320))}`);
-			if (id !== generationId) return debug(ctx, "ignored: stale result");
-			if (ctx.hasPendingMessages()) return debug(ctx, "ignored: pending messages appeared");
-			if (ctx.ui.getEditorText().trim().length > 0) return debug(ctx, "ignored: editor became non-empty");
+		// Fire and forget. Pi awaits agent_end handlers before settling the turn; blocking here
+		// on the suggestion request keeps the "Working..." indicator animating and re-rendering
+		// the whole TUI (which also defeats terminal scrollback) long after the agent finished.
+		void (async () => {
+			try {
+				const raw = await generateSuggestions(event.messages, ctx, model, config);
+				debug(ctx, `raw: ${JSON.stringify(truncatePlain(JSON.stringify(raw), 320))}`);
+				if (id !== generationId) return debug(ctx, "ignored: stale result");
+				if (ctx.hasPendingMessages()) return debug(ctx, "ignored: pending messages appeared");
+				if (ctx.ui.getEditorText().trim().length > 0) return debug(ctx, "ignored: editor became non-empty");
 
-			// Model ranks candidates by confidence; sanitize, drop near-duplicates, then keep the top maxSuggestions.
-			const clean = dedupeSuggestions(
-				raw
-					.map((text) => sanitizeSuggestion(text, config.maxChars))
-					.filter((text): text is string => text !== undefined),
-			).slice(0, config.maxSuggestions);
-			if (!clean.length) return debug(ctx, `rejected: ${JSON.stringify(truncatePlain(JSON.stringify(raw), 320))}`);
+				// Model ranks candidates by confidence; sanitize, drop near-duplicates, then keep the top maxSuggestions.
+				const clean = dedupeSuggestions(
+					raw
+						.map((text) => sanitizeSuggestion(text, config.maxChars))
+						.filter((text): text is string => text !== undefined),
+				).slice(0, config.maxSuggestions);
+				if (!clean.length) return debug(ctx, `rejected: ${JSON.stringify(truncatePlain(JSON.stringify(raw), 320))}`);
 
-			showSuggestions(clean, ctx);
-			debug(ctx, `shown: ${JSON.stringify(clean)}`);
-		} catch (error) {
-			debug(ctx, `error: ${error instanceof Error ? error.message : String(error)}`);
-			// Suggestion generation is best-effort and must never interrupt normal use.
-		}
+				showSuggestions(clean, ctx);
+				debug(ctx, `shown: ${JSON.stringify(clean)}`);
+			} catch (error) {
+				debug(ctx, `error: ${error instanceof Error ? error.message : String(error)}`);
+				// Suggestion generation is best-effort and must never interrupt normal use.
+			}
+		})();
 	});
 }
 
