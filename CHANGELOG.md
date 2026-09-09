@@ -8,6 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- A transient "Generating suggestions..." line appears above the editor the
+  moment a next-prompt suggestion starts generating and clears as soon as the
+  candidates are ready to display. It is a static `aboveEditor` widget (no
+  timer, no animated frames, no-op `invalidate`), so setting and clearing it
+  each trigger a single redraw and it does not interfere with terminal
+  scrollback. The line is left-padded by `outputPad` (default 1) to line up
+  with the chat text, and is cleared on every terminal path — success, pending
+  messages, a non-empty editor, an empty result, and an error — as well as on
+  input and session resets.
 - Graceful handling of settings-file failures. When `prompt-buffet.json`
   cannot be read, parsed, resynced, or written — or when the
   `extensions/` directory it lives in cannot be created — the extension
@@ -41,17 +50,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   and `utils.ts` (debug logging and small shared helpers). The
   `package.json` `pi.extensions` entry and `files` list now point at and
   ship these modules.
-
-### Fixed
-
-- The animated "Working..." indicator no longer keeps spinning during
-  suggestion generation. Pi awaits `agent_end` extension handlers before it
-  settles the turn and clears that indicator; the prompt-buffet handler
-  used to block on the suggestion LLM request, keeping the indicator
-  animating — and the whole TUI re-rendering — for the full duration of the
-  call, which also defeated terminal scrollback. Suggestion generation now
-  runs fire-and-forget inside the `agent_end` handler; the staleness,
-  pending-message, and editor-empty checks are unchanged.
 
 ## [0.1.1] - 2026-09-07
 
